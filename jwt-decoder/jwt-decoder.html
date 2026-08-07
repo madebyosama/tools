@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JWT decoder</title>
+<meta name="description" content="Decode and verify JWTs locally. Tokens never leave your browser.">
+<meta name="color-scheme" content="light dark">
+<style>:root{
+  --bg:#fbfbfa; --surface:#ffffff; --subtle:#f4f4f2; --border:#e8e8e4; --border-strong:#d9d9d3;
+  --text:#191918; --muted:#77776f; --faint:#a1a199; --solid:#191918; --solid-text:#ffffff;
+  --danger:#a3341f; --danger-bg:#fdf3f0; --ok:#2f6f4f; --ok-bg:#eef5f1; --warn:#8a6a1f; --warn-bg:#fbf6e9;
+  --radius:10px; --radius-sm:7px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 1px 1px rgba(0,0,0,.03);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#111110;--surface:#1a1a19;--subtle:#232322;--border:#2b2b29;--border-strong:#3a3a37;
+    --text:#f2f2ef;--muted:#a3a39a;--faint:#77776f;--solid:#f2f2ef;--solid-text:#111110;
+    --danger:#e08b74;--danger-bg:#2a1c18;--ok:#7fbf9a;--ok-bg:#18241d;--warn:#d8b866;--warn-bg:#282216;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;padding:32px 20px 64px}
+.wrap{max-width:840px;margin:0 auto}
+.topbar{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.mark{width:22px;height:22px;border-radius:6px;background:var(--solid);flex:none;display:grid;place-items:center;
+  color:var(--solid-text);font-family:var(--mono);font-size:11px;font-weight:700}
+h1{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0}
+.tagline{color:var(--muted);margin:0 0 22px;font-size:13.5px;max-width:58ch}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden}
+.section{padding:18px}
+.section + .section{border-top:1px solid var(--border)}
+label,legend,.lbl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:0}
+button{font-family:inherit;cursor:pointer}
+.btn{padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);
+  background:var(--surface);color:var(--text);font-size:13px;font-weight:500}
+.btn:hover:not(:disabled){background:var(--subtle)}
+.btn-primary{background:var(--solid);color:var(--solid-text);border-color:var(--solid)}
+.btn-primary:hover:not(:disabled){opacity:.88}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+textarea,input[type=text],input[type=password]{font-family:var(--mono);font-size:13px;line-height:1.55;color:var(--text);
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  padding:10px 12px;width:100%;resize:vertical}
+textarea::placeholder,input::placeholder{color:var(--faint)}
+input:focus,textarea:focus{outline:2px solid var(--solid);outline-offset:1px;border-color:transparent}
+.btn:focus-visible,input[type=checkbox]:focus-visible,.seg-label:focus-within{outline:2px solid var(--solid);outline-offset:1px}
+.seg{display:flex;background:var(--subtle);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px;gap:2px}
+.seg input{position:absolute;opacity:0;width:0;height:0}
+.seg-label{flex:1;text-align:center;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12.5px;
+  font-weight:500;color:var(--muted);white-space:nowrap;transition:background .12s,color .12s}
+.seg-label:hover{color:var(--text)}
+.seg input:checked+.seg-label{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.checks{display:flex;flex-wrap:wrap;gap:10px 18px}
+.check{display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;text-transform:none;
+  letter-spacing:0;font-weight:400;color:var(--text)}
+.check input{width:15px;height:15px;accent-color:var(--solid);cursor:pointer;margin:0}
+.row-between{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.bar{display:flex;align-items:center;gap:8px;padding:14px 18px;border-top:1px solid var(--border);
+  background:var(--subtle);flex-wrap:wrap}
+.note{font-size:12px;color:var(--faint)}
+.mono{font-family:var(--mono)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;
+  border-radius:999px;font-family:var(--font)}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.bad{background:var(--danger-bg);color:var(--danger)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.neutral{background:var(--subtle);color:var(--muted)}
+footer{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--faint);font-size:12.5px}
+#status.ok{color:var(--ok)} #status.err{color:var(--danger)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+#token{min-height:104px;font-size:12.5px;word-break:break-all}
+.parts{font-family:var(--mono);font-size:12.5px;word-break:break-all;line-height:1.6;
+  background:var(--subtle);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-top:10px}
+.p0{color:#b4531a} .p1{color:#2f6f4f} .p2{color:#6b4fa8}
+@media (prefers-color-scheme:dark){.p0{color:#e2a06a}.p1{color:#7fbf9a}.p2{color:#b49ae0}}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media (max-width:660px){.cols{grid-template-columns:1fr}}
+.cols > div{padding:18px;min-width:0}
+.cols > div:first-child{border-right:1px solid var(--border)}
+@media (max-width:660px){.cols > div:first-child{border-right:0;border-bottom:1px solid var(--border)}}
+pre{margin:8px 0 0;font-family:var(--mono);font-size:12.5px;line-height:1.55;white-space:pre-wrap;
+  word-break:break-word;background:var(--subtle);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px}
+.claims{margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+.claim{display:flex;gap:10px;padding:4px 0;font-size:12.5px;align-items:baseline}
+.claim .k{font-family:var(--mono);font-weight:600;flex:none;min-width:64px}
+.claim .v{color:var(--muted);min-width:0;word-break:break-word}
+.claim .v em{font-style:normal;color:var(--text)}
+.errs{background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:10px 12px;
+  font-size:12.5px;margin-top:10px}
+.errs div + div{margin-top:4px}
+.verify-row{display:flex;gap:8px;align-items:flex-start;margin-top:9px;flex-wrap:wrap}
+.verify-row input,.verify-row textarea{flex:1;min-width:180px}
+.hdr{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.empty{padding:26px 18px;text-align:center;color:var(--faint);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><span class="mark" aria-hidden="true">{}</span><h1>JWT decoder</h1></div>
+  <p class="tagline">Decode and check a token without pasting it into someone else's server. A JWT is a live credential — this one stays in your browser.</p>
+
+  <main class="panel">
+    <div class="section">
+      <label for="token">Token</label>
+      <textarea id="token" spellcheck="false" autocapitalize="off" autocomplete="off"
+        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.…" style="margin-top:7px"></textarea>
+      <div class="parts" id="parts" hidden></div>
+      <div class="errs" id="errs" hidden></div>
+    </div>
+
+    <div id="result" hidden>
+      <div class="cols">
+        <div>
+          <div class="hdr"><span class="lbl">Header</span><span class="pill neutral" id="algPill"></span></div>
+          <pre id="headerOut"></pre>
+        </div>
+        <div>
+          <div class="hdr"><span class="lbl">Payload</span><span class="pill" id="statusPill"></span></div>
+          <pre id="payloadOut"></pre>
+          <div class="claims" id="claims"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="hdr"><span class="lbl">Signature</span><span class="pill neutral" id="verifyPill">Not checked</span></div>
+        <div class="verify-row" id="verifyRow">
+          <input type="password" id="secret" placeholder="shared secret" spellcheck="false" autocomplete="off">
+          <button class="btn" id="verifyBtn">Check</button>
+        </div>
+        <p class="note" id="verifyNote" style="margin:8px 0 0"></p>
+      </div>
+    </div>
+
+    <p class="empty" id="empty">Paste a token above.</p>
+
+    <div class="bar">
+      <span class="note" style="flex:1;min-width:140px">Nothing is sent anywhere.</span>
+      <button class="btn" id="sample">Load a sample</button>
+      <button class="btn" id="clear">Clear</button>
+    </div>
+  </main>
+
+  <footer>
+    <span>Decoding is not verification — check the signature before trusting a token.</span>
+    <span id="status" role="status" aria-live="polite"></span>
+  </footer>
+</div>
+
+<script>/* JWT decoding + claim interpretation + signature verification.
+   Everything is local; a token is a live credential and must never be sent anywhere. */
+(function (root, factory) {
+  if (typeof module !== "undefined" && module.exports) module.exports = factory();
+  else root.JwtCore = factory();
+})(typeof self !== "undefined" ? self : this, function () {
+  "use strict";
+
+  function b64urlToBytes(str) {
+    var s = String(str).replace(/-/g, "+").replace(/_/g, "/").replace(/\s+/g, "");
+    if (/[^A-Za-z0-9+/=]/.test(s)) throw new Error("not valid base64url");
+    var padded = s + "===".slice((s.length + 3) % 4);
+    var bin;
+    if (typeof atob === "function") bin = atob(padded);
+    else bin = Buffer.from(padded, "base64").toString("binary");
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function b64urlToText(str) {
+    var bytes = b64urlToBytes(str);
+    if (typeof TextDecoder !== "undefined") return new TextDecoder("utf-8").decode(bytes);
+    return Buffer.from(bytes).toString("utf8");
+  }
+
+  /* Never throws. Returns { valid, parts, header, payload, signature, errors[] }. */
+  function decode(token) {
+    var res = {
+      valid: false, raw: token, parts: [], header: null, payload: null,
+      headerText: "", payloadText: "", signature: "", errors: []
+    };
+    var t = String(token || "").trim().replace(/^Bearer\s+/i, "");
+    if (!t) { res.errors.push("Paste a token to decode."); return res; }
+
+    var parts = t.split(".");
+    res.parts = parts;
+    if (parts.length !== 3) {
+      res.errors.push(
+        parts.length < 3
+          ? "A JWT has three dot-separated parts; this has " + parts.length + "."
+          : "Too many dots — a JWT has exactly three parts."
+      );
+      if (parts.length < 2) return res;
+    }
+
+    ["header", "payload"].forEach(function (which, i) {
+      if (!parts[i]) { res.errors.push("The " + which + " is empty."); return; }
+      var text;
+      try { text = b64urlToText(parts[i]); }
+      catch (e) { res.errors.push("The " + which + " isn't valid base64url."); return; }
+      res[which + "Text"] = text;
+      try { res[which] = JSON.parse(text); }
+      catch (e) { res.errors.push("The " + which + " isn't valid JSON."); }
+    });
+
+    res.signature = parts[2] || "";
+    res.valid = !!(res.header && res.payload);
+    return res;
+  }
+
+  var CLAIMS = {
+    iss: "Issuer — who created the token",
+    sub: "Subject — who the token is about",
+    aud: "Audience — who it's meant for",
+    exp: "Expires at",
+    nbf: "Not valid before",
+    iat: "Issued at",
+    jti: "Token ID — unique, used to prevent replay",
+    azp: "Authorized party",
+    scope: "Granted scopes",
+    scp: "Granted scopes",
+    typ: "Token type",
+    alg: "Signing algorithm",
+    kid: "Key ID — which key signed this",
+    nonce: "Nonce — binds the token to a login request",
+    auth_time: "Authenticated at",
+    email: "Email address",
+    email_verified: "Email verified",
+    name: "Display name",
+    preferred_username: "Username",
+    roles: "Assigned roles",
+    groups: "Group memberships",
+    client_id: "Client application ID",
+    session_state: "Session identifier"
+  };
+  var TIME_CLAIMS = ["exp", "nbf", "iat", "auth_time"];
+
+  function isTimeClaim(k) { return TIME_CLAIMS.indexOf(k) >= 0; }
+
+  function fmtAbsolute(sec) {
+    var d = new Date(sec * 1000);
+    if (isNaN(d.getTime())) return "not a valid time";
+    return d.toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC");
+  }
+
+  function relative(sec, nowMs) {
+    var diff = sec * 1000 - (nowMs === undefined ? Date.now() : nowMs);
+    var future = diff > 0;
+    var s = Math.abs(diff) / 1000;
+    var out;
+    // Compare the rounded value against the unit ceiling so 3599s reads "1h", not "60m".
+    if (Math.round(s) < 60) out = Math.round(s) + "s";
+    else if (Math.round(s / 60) < 60) out = Math.round(s / 60) + "m";
+    else if (Math.round(s / 3600) < 24) out = Math.round(s / 3600) + "h";
+    else if (Math.round(s / 86400) < 30) out = Math.round(s / 86400) + "d";
+    else if (Math.round(s / 2629746) < 12) out = Math.round(s / 2629746) + "mo";
+    else out = (Math.round(s / 31556952 * 10) / 10) + "y";
+    return future ? "in " + out : out + " ago";
+  }
+
+  /* Overall validity window. Skew tolerance matches common server defaults. */
+  function status(payload, nowMs, skewSec) {
+    var now = (nowMs === undefined ? Date.now() : nowMs) / 1000;
+    var skew = skewSec === undefined ? 0 : skewSec;
+    if (!payload || typeof payload !== "object") return { kind: "unknown", text: "No payload" };
+
+    var exp = typeof payload.exp === "number" ? payload.exp : null;
+    var nbf = typeof payload.nbf === "number" ? payload.nbf : null;
+
+    if (exp !== null && now > exp + skew) {
+      return { kind: "expired", text: "Expired " + relative(exp, nowMs) };
+    }
+    if (nbf !== null && now < nbf - skew) {
+      return { kind: "early", text: "Not valid until " + relative(nbf, nowMs) };
+    }
+    if (exp !== null) return { kind: "active", text: "Expires " + relative(exp, nowMs) };
+    return { kind: "noexp", text: "No expiry set" };
+  }
+
+  /* --- signature verification --- */
+  var HS = { HS256: "SHA-256", HS384: "SHA-384", HS512: "SHA-512" };
+  var RS = { RS256: "SHA-256", RS384: "SHA-384", RS512: "SHA-512" };
+
+  function pemToBytes(pem) {
+    var body = String(pem).replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+    if (!body) throw new Error("empty key");
+    return b64urlToBytes(body);
+  }
+
+  function asciiBytes(s) {
+    var out = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
+    return out;
+  }
+
+  function utf8Bytes(s) {
+    if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(s);
+    return new Uint8Array(Buffer.from(s, "utf8"));
+  }
+
+  /* Returns { ok, reason }. ok===null means "couldn't check". */
+  async function verify(token, alg, keyMaterial) {
+    var subtle = (typeof globalThis !== "undefined" && globalThis.crypto && globalThis.crypto.subtle) || null;
+    if (!subtle) return { ok: null, reason: "WebCrypto isn't available here." };
+
+    var parts = String(token).trim().replace(/^Bearer\s+/i, "").split(".");
+    if (parts.length !== 3) return { ok: null, reason: "Need all three parts to check a signature." };
+    var signed = asciiBytes(parts[0] + "." + parts[1]);
+    var sig;
+    try { sig = b64urlToBytes(parts[2]); }
+    catch (e) { return { ok: false, reason: "The signature isn't valid base64url." }; }
+
+    try {
+      if (HS[alg]) {
+        if (!keyMaterial) return { ok: null, reason: "Enter the shared secret to check this." };
+        var key = await subtle.importKey("raw", utf8Bytes(keyMaterial),
+          { name: "HMAC", hash: HS[alg] }, false, ["verify"]);
+        var ok = await subtle.verify("HMAC", key, sig, signed);
+        return { ok: ok, reason: ok ? "Signature matches this secret." : "Signature does not match this secret." };
+      }
+      if (RS[alg]) {
+        if (!keyMaterial) return { ok: null, reason: "Paste the public key (PEM) to check this." };
+        var pub = await subtle.importKey("spki", pemToBytes(keyMaterial),
+          { name: "RSASSA-PKCS1-v1_5", hash: RS[alg] }, false, ["verify"]);
+        var ok2 = await subtle.verify("RSASSA-PKCS1-v1_5", pub, sig, signed);
+        return { ok: ok2, reason: ok2 ? "Signature matches this public key." : "Signature does not match this public key." };
+      }
+      if (alg === "none") return { ok: false, reason: "alg is \"none\" — this token is unsigned. Reject it." };
+      return { ok: null, reason: alg ? alg + " isn't supported here yet." : "No algorithm in the header." };
+    } catch (e) {
+      return { ok: null, reason: "Couldn't use that key — check the format." };
+    }
+  }
+
+  return {
+    b64urlToBytes: b64urlToBytes, b64urlToText: b64urlToText,
+    decode: decode, status: status, relative: relative, fmtAbsolute: fmtAbsolute,
+    isTimeClaim: isTimeClaim, CLAIMS: CLAIMS, verify: verify
+  };
+});
+</script>
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id)};
+  var token=$("token"), parts=$("parts"), errs=$("errs"), result=$("result"), empty=$("empty"),
+      headerOut=$("headerOut"), payloadOut=$("payloadOut"), claims=$("claims"),
+      algPill=$("algPill"), statusPill=$("statusPill"), verifyPill=$("verifyPill"),
+      verifyNote=$("verifyNote"), verifyRow=$("verifyRow"), secret=$("secret"), status=$("status");
+  var decoded=null, statusTimer=null;
+
+  function say(m,k){ status.textContent=m; status.className=k||"";
+    clearTimeout(statusTimer); if(m) statusTimer=setTimeout(function(){status.textContent="";status.className="";},3000); }
+
+  function showParts(t){
+    var p=String(t).trim().replace(/^Bearer\s+/i,"").split(".");
+    parts.textContent="";
+    p.forEach(function(seg,i){
+      if(i>0){ var dot=document.createElement("span"); dot.textContent="."; parts.appendChild(dot); }
+      var sp=document.createElement("span");
+      sp.className="p"+Math.min(i,2); sp.textContent=seg;
+      parts.appendChild(sp);
+    });
+    parts.hidden = p.length<2;
+  }
+
+  function pretty(obj){ try{ return JSON.stringify(obj,null,2); }catch(e){ return String(obj); } }
+
+  function renderClaims(payload){
+    claims.textContent="";
+    if(!payload||typeof payload!=="object") return;
+    var keys=Object.keys(payload);
+    var shown=keys.filter(function(k){ return JwtCore.CLAIMS[k] || JwtCore.isTimeClaim(k); });
+    if(!shown.length){ claims.hidden=true; return; }
+    claims.hidden=false;
+    shown.forEach(function(k){
+      var row=document.createElement("div"); row.className="claim";
+      var kk=document.createElement("span"); kk.className="k"; kk.textContent=k;
+      var vv=document.createElement("span"); vv.className="v";
+      var desc=JwtCore.CLAIMS[k]||"";
+      if(JwtCore.isTimeClaim(k) && typeof payload[k]==="number"){
+        var em=document.createElement("em");
+        em.textContent=JwtCore.fmtAbsolute(payload[k])+" ("+JwtCore.relative(payload[k])+")";
+        vv.appendChild(document.createTextNode(desc+" — "));
+        vv.appendChild(em);
+      } else {
+        vv.textContent=desc;
+      }
+      row.appendChild(kk); row.appendChild(vv); claims.appendChild(row);
+    });
+  }
+
+  function setVerifyUi(alg){
+    var isHs=/^HS(256|384|512)$/.test(alg||"");
+    var isRs=/^RS(256|384|512)$/.test(alg||"");
+    verifyRow.hidden = !(isHs||isRs);
+    if(isHs){ secret.placeholder="shared secret"; secret.type="password"; }
+    if(isRs){ secret.placeholder="-----BEGIN PUBLIC KEY-----"; secret.type="text"; }
+    if(!isHs&&!isRs){
+      verifyNote.textContent = alg==="none"
+        ? 'The header says alg is "none" — this token is unsigned and must not be trusted.'
+        : (alg? alg+" verification isn't supported here yet." : "");
+      verifyPill.className="pill "+(alg==="none"?"bad":"neutral");
+      verifyPill.textContent = alg==="none" ? "Unsigned" : "Not checked";
+    } else {
+      verifyNote.textContent="";
+      verifyPill.className="pill neutral"; verifyPill.textContent="Not checked";
+    }
+  }
+
+  function render(){
+    var t=token.value;
+    if(!t.trim()){
+      result.hidden=true; empty.hidden=false; parts.hidden=true; errs.hidden=true; decoded=null; return;
+    }
+    empty.hidden=true;
+    showParts(t);
+    var d=JwtCore.decode(t);
+    decoded=d;
+
+    errs.textContent="";
+    errs.hidden = d.errors.length===0;
+    d.errors.forEach(function(e){ var div=document.createElement("div"); div.textContent=e; errs.appendChild(div); });
+
+    if(!d.valid){ result.hidden=true; return; }
+    result.hidden=false;
+
+    headerOut.textContent=pretty(d.header);
+    payloadOut.textContent=pretty(d.payload);
+
+    algPill.textContent=d.header.alg||"no alg";
+    algPill.className="pill "+(d.header.alg==="none"?"bad":"neutral");
+
+    var st=JwtCore.status(d.payload);
+    statusPill.textContent=st.text;
+    statusPill.className="pill "+(st.kind==="expired"?"bad":st.kind==="early"?"warn":st.kind==="active"?"ok":"neutral");
+
+    renderClaims(d.payload);
+    setVerifyUi(d.header.alg);
+  }
+
+  token.addEventListener("input", render);
+
+  $("verifyBtn").addEventListener("click", async function(){
+    if(!decoded||!decoded.valid) return;
+    verifyPill.className="pill neutral"; verifyPill.textContent="Checking…";
+    var r=await JwtCore.verify(token.value, decoded.header.alg, secret.value);
+    if(r.ok===true){ verifyPill.className="pill ok"; verifyPill.textContent="Signature valid"; }
+    else if(r.ok===false){ verifyPill.className="pill bad"; verifyPill.textContent="Signature invalid"; }
+    else { verifyPill.className="pill neutral"; verifyPill.textContent="Not checked"; }
+    verifyNote.textContent=r.reason||"";
+  });
+
+  $("clear").addEventListener("click", function(){
+    token.value=""; secret.value=""; render(); say("Cleared"); token.focus();
+  });
+
+  $("sample").addEventListener("click", function(){
+    // Signed with the secret "a-shared-secret" so the check can be tried out.
+    token.value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTQyIiwibmFtZSI6IkFkYSBMb3ZlbGFjZSIsImlzcyI6Imh0dHBzOi8vYXV0aC5leGFtcGxlLmNvbSIsImF1ZCI6ImFwaSIsImlhdCI6MTcwMDAwMDAwMCwiZXhwIjoxNzAwMDAzNjAwLCJqdGkiOiJhYmMxMjMifQ.QQAnr9a1RIGA484hgowsqzxY0OyU-M4GmPEEQ4TFyxs";
+    secret.value="a-shared-secret";
+    render(); say("Sample loaded — expired on purpose");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

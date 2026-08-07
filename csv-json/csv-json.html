@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSV ↔ JSON</title>
+<meta name="description" content="Convert between CSV and JSON locally. Nothing is uploaded.">
+<meta name="color-scheme" content="light dark">
+<style>:root{
+  --bg:#fbfbfa; --surface:#ffffff; --subtle:#f4f4f2; --border:#e8e8e4; --border-strong:#d9d9d3;
+  --text:#191918; --muted:#77776f; --faint:#a1a199; --solid:#191918; --solid-text:#ffffff;
+  --danger:#a3341f; --danger-bg:#fdf3f0; --ok:#2f6f4f; --ok-bg:#eef5f1; --warn:#8a6a1f; --warn-bg:#fbf6e9;
+  --radius:10px; --radius-sm:7px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 1px 1px rgba(0,0,0,.03);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#111110;--surface:#1a1a19;--subtle:#232322;--border:#2b2b29;--border-strong:#3a3a37;
+    --text:#f2f2ef;--muted:#a3a39a;--faint:#77776f;--solid:#f2f2ef;--solid-text:#111110;
+    --danger:#e08b74;--danger-bg:#2a1c18;--ok:#7fbf9a;--ok-bg:#18241d;--warn:#d8b866;--warn-bg:#282216;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;padding:32px 20px 64px}
+.wrap{max-width:840px;margin:0 auto}
+.topbar{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.mark{width:22px;height:22px;border-radius:6px;background:var(--solid);flex:none;display:grid;place-items:center;
+  color:var(--solid-text);font-family:var(--mono);font-size:11px;font-weight:700}
+h1{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0}
+.tagline{color:var(--muted);margin:0 0 22px;font-size:13.5px;max-width:58ch}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden}
+.section{padding:18px}
+.section + .section{border-top:1px solid var(--border)}
+label,legend,.lbl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:0}
+button{font-family:inherit;cursor:pointer}
+.btn{padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);
+  background:var(--surface);color:var(--text);font-size:13px;font-weight:500}
+.btn:hover:not(:disabled){background:var(--subtle)}
+.btn-primary{background:var(--solid);color:var(--solid-text);border-color:var(--solid)}
+.btn-primary:hover:not(:disabled){opacity:.88}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+textarea,input[type=text],input[type=password]{font-family:var(--mono);font-size:13px;line-height:1.55;color:var(--text);
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  padding:10px 12px;width:100%;resize:vertical}
+textarea::placeholder,input::placeholder{color:var(--faint)}
+input:focus,textarea:focus{outline:2px solid var(--solid);outline-offset:1px;border-color:transparent}
+.btn:focus-visible,input[type=checkbox]:focus-visible,.seg-label:focus-within{outline:2px solid var(--solid);outline-offset:1px}
+.seg{display:flex;background:var(--subtle);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px;gap:2px}
+.seg input{position:absolute;opacity:0;width:0;height:0}
+.seg-label{flex:1;text-align:center;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12.5px;
+  font-weight:500;color:var(--muted);white-space:nowrap;transition:background .12s,color .12s}
+.seg-label:hover{color:var(--text)}
+.seg input:checked+.seg-label{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.checks{display:flex;flex-wrap:wrap;gap:10px 18px}
+.check{display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;text-transform:none;
+  letter-spacing:0;font-weight:400;color:var(--text)}
+.check input{width:15px;height:15px;accent-color:var(--solid);cursor:pointer;margin:0}
+.row-between{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.bar{display:flex;align-items:center;gap:8px;padding:14px 18px;border-top:1px solid var(--border);
+  background:var(--subtle);flex-wrap:wrap}
+.note{font-size:12px;color:var(--faint)}
+.mono{font-family:var(--mono)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;
+  border-radius:999px;font-family:var(--font)}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.bad{background:var(--danger-bg);color:var(--danger)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.neutral{background:var(--subtle);color:var(--muted)}
+footer{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--faint);font-size:12.5px}
+#status.ok{color:var(--ok)} #status.err{color:var(--danger)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.io{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media (max-width:720px){.io{grid-template-columns:1fr}}
+.io > div{padding:16px 18px;min-width:0;display:flex;flex-direction:column;gap:8px}
+.io > div:first-child{border-right:1px solid var(--border)}
+@media (max-width:720px){.io > div:first-child{border-right:0;border-bottom:1px solid var(--border)}}
+textarea{min-height:230px;font-size:12.5px;white-space:pre;overflow-wrap:normal;overflow-x:auto}
+#output{background:var(--subtle)}
+.io .hdr{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.opts{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center}
+.errs{background:var(--danger-bg);color:var(--danger);border-radius:var(--radius-sm);padding:9px 11px;font-size:12px}
+.errs div + div{margin-top:3px}
+.errs.warn{background:var(--warn-bg);color:var(--warn)}
+.drop-hint{border:1px dashed var(--border-strong);border-radius:var(--radius-sm);padding:8px;text-align:center;
+  font-size:12px;color:var(--faint);cursor:pointer}
+.drop-hint.over{border-color:var(--solid);color:var(--text);background:var(--subtle)}
+#file{position:absolute;width:1px;height:1px;opacity:0}
+.tbl{overflow:auto;max-height:260px;border:1px solid var(--border);border-radius:var(--radius-sm)}
+table.preview{border-collapse:collapse;font-size:12px;width:100%}
+table.preview th,table.preview td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);
+  padding:5px 8px;text-align:left;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+table.preview th{background:var(--subtle);position:sticky;top:0;font-weight:600;font-family:var(--mono);font-size:11.5px}
+table.preview td{font-family:var(--mono);color:var(--muted)}
+table.preview tr:last-child td{border-bottom:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><span class="mark" aria-hidden="true">⇄</span><h1>CSV ↔ JSON</h1></div>
+  <p class="tagline">Convert either direction, with quoted fields, embedded newlines and odd delimiters handled properly. Runs entirely in your browser.</p>
+
+  <main class="panel">
+    <div class="section">
+      <div class="row-between">
+        <div class="seg" id="dirSeg" style="flex:1;max-width:320px">
+          <input type="radio" name="dir" id="d-c2j" value="c2j" checked><label class="seg-label" for="d-c2j">CSV → JSON</label>
+          <input type="radio" name="dir" id="d-j2c" value="j2c"><label class="seg-label" for="d-j2c">JSON → CSV</label>
+        </div>
+        <div class="opts" id="opts"></div>
+      </div>
+    </div>
+
+    <div class="io">
+      <div>
+        <div class="hdr"><span class="lbl" id="inLabel">CSV in</span><span class="note" id="inMeta"></span></div>
+        <label class="drop-hint" id="dropHint" for="file">Drop a file or click to choose</label>
+        <input type="file" id="file" accept=".csv,.tsv,.txt,.json,text/csv,application/json">
+        <textarea id="input" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="name,age&#10;Amy,30&#10;Bob,25"></textarea>
+        <div class="errs" id="errs" hidden></div>
+      </div>
+      <div>
+        <div class="hdr"><span class="lbl" id="outLabel">JSON out</span><span class="note" id="outMeta"></span></div>
+        <textarea id="output" spellcheck="false" readonly placeholder="Output appears here"></textarea>
+        <div class="tbl" id="tblWrap" hidden><table class="preview" id="preview"></table></div>
+      </div>
+    </div>
+
+    <div class="bar">
+      <span class="note" id="tally" style="flex:1;min-width:140px">—</span>
+      <button class="btn" id="sample">Sample</button>
+      <button class="btn" id="clear">Clear</button>
+      <button class="btn" id="download" disabled>Download</button>
+      <button class="btn btn-primary" id="copy" disabled>Copy</button>
+    </div>
+  </main>
+
+  <footer>
+    <span>Files are read in the browser, never uploaded.</span>
+    <span id="status" role="status" aria-live="polite"></span>
+  </footer>
+</div>
+
+<script>/* CSV <-> JSON. Own RFC 4180 parser: quoted fields, embedded delimiters and
+   newlines, doubled quotes, CRLF, BOM, and delimiter sniffing. */
+(function (root, factory) {
+  if (typeof module !== "undefined" && module.exports) module.exports = factory();
+  else root.CsvCore = factory();
+})(typeof self !== "undefined" ? self : this, function () {
+  "use strict";
+
+  var DELIMS = [",", ";", "\t", "|"];
+
+  function stripBom(s) { return s.charCodeAt(0) === 0xfeff ? s.slice(1) : s; }
+
+  /* Pick the delimiter giving the most consistent column count across rows. */
+  function sniffDelimiter(text) {
+    var sample = stripBom(text).split(/\r\n|\n|\r/).slice(0, 20).join("\n");
+    var best = ",", bestScore = -1;
+    DELIMS.forEach(function (d) {
+      var rows = parseRows(sample, d).rows.filter(function (r) { return r.length > 1 || r[0] !== ""; });
+      if (!rows.length) return;
+      var counts = rows.map(function (r) { return r.length; });
+      var first = counts[0];
+      if (first < 2) return;
+      var consistent = counts.filter(function (c) { return c === first; }).length / counts.length;
+      var score = consistent * 100 + first;   // consistency first, then column count
+      if (score > bestScore) { bestScore = score; best = d; }
+    });
+    return best;
+  }
+
+  /* Character-level state machine. Returns { rows, errors }. */
+  function parseRows(text, delim) {
+    var src = stripBom(text);
+    var rows = [], row = [], field = "";
+    var inQuotes = false, i = 0, errors = [];
+    var line = 1, fieldStartLine = 1;
+
+    while (i < src.length) {
+      var ch = src[i];
+
+      if (inQuotes) {
+        if (ch === '"') {
+          if (src[i + 1] === '"') { field += '"'; i += 2; continue; }
+          inQuotes = false; i++;
+          // Anything other than a delimiter/newline/EOF after a closing quote is malformed;
+          // keep the text rather than dropping data.
+          var nxt = src[i];
+          if (nxt !== undefined && nxt !== delim && nxt !== "\n" && nxt !== "\r") {
+            errors.push("Line " + line + ": unexpected text after a closing quote.");
+          }
+          continue;
+        }
+        if (ch === "\n") line++;
+        field += ch; i++; continue;
+      }
+
+      if (ch === '"' && field === "") { inQuotes = true; fieldStartLine = line; i++; continue; }
+      if (ch === delim) { row.push(field); field = ""; i++; continue; }
+      if (ch === "\r") {
+        if (src[i + 1] === "\n") i++;
+        row.push(field); rows.push(row); row = []; field = ""; i++; line++; continue;
+      }
+      if (ch === "\n") {
+        row.push(field); rows.push(row); row = []; field = ""; i++; line++; continue;
+      }
+      field += ch; i++;
+    }
+
+    if (inQuotes) errors.push("Line " + fieldStartLine + ": a quoted field is never closed.");
+    if (field !== "" || row.length) { row.push(field); rows.push(row); }
+
+    // drop a single trailing empty row from a final newline
+    if (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") rows.pop();
+    return { rows: rows, errors: errors };
+  }
+
+  /* Only coerce when the value survives a round trip unchanged. "007", "+5" and
+     "1e5" stay text — rewriting them as 7 / 5 / 100000 would silently alter data
+     (the classic spreadsheet corruption of SKUs, ZIP codes and gene names). */
+  function coerce(v, on) {
+    if (!on) return v;
+    if (v === "") return null;
+    if (/^-?\d+$/.test(v)) {
+      var n = parseInt(v, 10);
+      if (String(n) === v.replace(/^\+/, "")) return n;
+      return v;                                  // keep leading zeros / big ints as text
+    }
+    if (/^-?(?:\d+\.\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(v)) {
+      var f = parseFloat(v);
+      return isFinite(f) ? f : v;
+    }
+    if (/^(true|false)$/i.test(v)) return v.toLowerCase() === "true";
+    if (/^null$/i.test(v)) return null;
+    return v;
+  }
+
+  function csvToJson(text, opts) {
+    opts = opts || {};
+    var delim = opts.delimiter || sniffDelimiter(text);
+    var parsed = parseRows(text, delim);
+    var rows = parsed.rows, errors = parsed.errors.slice();
+
+    if (!rows.length) return { data: [], errors: ["Nothing to convert."], delimiter: delim, columns: [] };
+
+    if (opts.noHeader) {
+      var out0 = rows.map(function (r) { return r.map(function (v) { return coerce(v, opts.coerce); }); });
+      return { data: out0, errors: errors, delimiter: delim, columns: [], rowCount: out0.length };
+    }
+
+    var header = rows[0].map(function (h, i) { return h.trim() || "column_" + (i + 1); });
+    var seen = {};
+    header = header.map(function (h) {
+      if (seen[h] === undefined) { seen[h] = 0; return h; }
+      seen[h]++; return h + "_" + seen[h];
+    });
+
+    var data = [];
+    for (var r = 1; r < rows.length; r++) {
+      var cells = rows[r];
+      if (cells.length === 1 && cells[0] === "") continue;
+      if (cells.length !== header.length) {
+        errors.push("Row " + (r + 1) + " has " + cells.length + " value" + (cells.length === 1 ? "" : "s") +
+                    ", header has " + header.length + ".");
+      }
+      var obj = {};
+      for (var c = 0; c < header.length; c++) {
+        obj[header[c]] = coerce(cells[c] === undefined ? "" : cells[c], opts.coerce);
+      }
+      data.push(obj);
+    }
+    return { data: data, errors: errors, delimiter: delim, columns: header, rowCount: data.length };
+  }
+
+  /* Flatten nested objects to dotted keys. Arrays of scalars join with "; ";
+     arrays of objects get indexed keys. */
+  function flatten(obj, prefix, out) {
+    out = out || {};
+    prefix = prefix || "";
+    if (obj === null || typeof obj !== "object") { out[prefix || "value"] = obj; return out; }
+
+    if (Array.isArray(obj)) {
+      var scalars = obj.every(function (v) { return v === null || typeof v !== "object"; });
+      if (scalars) { out[prefix || "value"] = obj.join("; "); return out; }
+      obj.forEach(function (v, i) { flatten(v, prefix ? prefix + "." + i : String(i), out); });
+      return out;
+    }
+
+    var keys = Object.keys(obj);
+    if (!keys.length) { out[prefix || "value"] = ""; return out; }
+    keys.forEach(function (k) {
+      var key = prefix ? prefix + "." + k : k;
+      var v = obj[k];
+      if (v !== null && typeof v === "object") flatten(v, key, out);
+      else out[key] = v;
+    });
+    return out;
+  }
+
+  function quoteField(v, delim, forceQuote) {
+    var s = v === null || v === undefined ? "" : String(v);
+    var needs = forceQuote || s.indexOf(delim) >= 0 || s.indexOf('"') >= 0 ||
+                s.indexOf("\n") >= 0 || s.indexOf("\r") >= 0 ||
+                s !== s.trim();
+    if (!needs) return s;
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+
+  function jsonToCsv(text, opts) {
+    opts = opts || {};
+    var delim = opts.delimiter || ",";
+    var eol = opts.crlf ? "\r\n" : "\n";
+    var parsedJson;
+    try { parsedJson = JSON.parse(text); }
+    catch (e) { return { text: "", errors: ["Not valid JSON: " + e.message], rowCount: 0, columns: [] }; }
+
+    var arr;
+    if (Array.isArray(parsedJson)) arr = parsedJson;
+    else if (parsedJson && typeof parsedJson === "object") arr = [parsedJson];
+    else return { text: "", errors: ["JSON must be an object or an array of objects."], rowCount: 0, columns: [] };
+
+    if (!arr.length) return { text: "", errors: ["The array is empty."], rowCount: 0, columns: [] };
+
+    var flat = arr.map(function (row) {
+      if (row === null || typeof row !== "object") return { value: row };
+      return flatten(row, "");
+    });
+
+    // union of keys, in order of first appearance
+    var cols = [], seen = {};
+    flat.forEach(function (o) {
+      Object.keys(o).forEach(function (k) { if (!seen[k]) { seen[k] = 1; cols.push(k); } });
+    });
+
+    var lines = [cols.map(function (c) { return quoteField(c, delim, opts.quoteAll); }).join(delim)];
+    flat.forEach(function (o) {
+      lines.push(cols.map(function (c) {
+        return quoteField(o[c] === undefined ? "" : o[c], delim, opts.quoteAll);
+      }).join(delim));
+    });
+
+    return { text: lines.join(eol), errors: [], rowCount: flat.length, columns: cols };
+  }
+
+  return {
+    sniffDelimiter: sniffDelimiter, parseRows: parseRows, csvToJson: csvToJson,
+    jsonToCsv: jsonToCsv, flatten: flatten, quoteField: quoteField, coerce: coerce, DELIMS: DELIMS
+  };
+});
+</script>
+<script>
+(function(){
+  "use strict";
+  var $=function(id){return document.getElementById(id)};
+  var input=$("input"), output=$("output"), errs=$("errs"), tally=$("tally"),
+      inLabel=$("inLabel"), outLabel=$("outLabel"), inMeta=$("inMeta"), outMeta=$("outMeta"),
+      optsBox=$("opts"), status=$("status"), copyBtn=$("copy"), dlBtn=$("download"),
+      tblWrap=$("tblWrap"), preview=$("preview"), dropHint=$("dropHint"), fileInput=$("file");
+  var statusTimer=null, lastOut="", lastRows=null, lastCols=null;
+
+  function say(m,k){ status.textContent=m; status.className=k||"";
+    clearTimeout(statusTimer); if(m) statusTimer=setTimeout(function(){status.textContent="";status.className="";},3000); }
+  function dir(){ return document.querySelector('input[name=dir]:checked').value; }
+
+  var OPTS={ coerce:true, header:true, quoteAll:false, crlf:false };
+
+  function buildOpts(){
+    optsBox.textContent="";
+    function add(id,label,checked,title){
+      var l=document.createElement("label"); l.className="check"; l.title=title||"";
+      var i=document.createElement("input"); i.type="checkbox"; i.id=id; i.checked=checked;
+      i.addEventListener("change",function(){ OPTS[id]=i.checked; run(); });
+      l.appendChild(i); l.appendChild(document.createTextNode(" "+label));
+      optsBox.appendChild(l);
+    }
+    if(dir()==="c2j"){
+      add("header","First row is a header",OPTS.header);
+      add("coerce","Detect numbers & booleans",OPTS.coerce,"Values that would change if converted (007, 1e5, +5) stay as text.");
+    } else {
+      add("quoteAll","Quote every field",OPTS.quoteAll);
+      add("crlf","Windows line endings",OPTS.crlf);
+    }
+  }
+
+  function showErrors(list, warn){
+    errs.textContent="";
+    if(!list||!list.length){ errs.hidden=true; return; }
+    errs.hidden=false;
+    errs.className="errs"+(warn?" warn":"");
+    list.slice(0,6).forEach(function(e){ var d=document.createElement("div"); d.textContent=e; errs.appendChild(d); });
+    if(list.length>6){ var d=document.createElement("div"); d.textContent="…and "+(list.length-6)+" more."; errs.appendChild(d); }
+  }
+
+  function renderPreview(rows, cols){
+    preview.textContent="";
+    if(!rows||!rows.length||!cols||!cols.length){ tblWrap.hidden=true; return; }
+    tblWrap.hidden=false;
+    var thead=document.createElement("thead"), tr=document.createElement("tr");
+    cols.slice(0,12).forEach(function(c){ var th=document.createElement("th"); th.textContent=c; tr.appendChild(th); });
+    thead.appendChild(tr); preview.appendChild(thead);
+    var tbody=document.createElement("tbody");
+    rows.slice(0,25).forEach(function(r){
+      var t=document.createElement("tr");
+      cols.slice(0,12).forEach(function(c){
+        var td=document.createElement("td");
+        var v=r[c];
+        td.textContent = v===null?"null":v===undefined?"":String(v);
+        t.appendChild(td);
+      });
+      tbody.appendChild(t);
+    });
+    preview.appendChild(tbody);
+  }
+
+  function run(){
+    var text=input.value;
+    if(!text.trim()){
+      output.value=""; showErrors(null); tblWrap.hidden=true;
+      tally.textContent="—"; inMeta.textContent=""; outMeta.textContent="";
+      copyBtn.disabled=dlBtn.disabled=true; lastOut=""; return;
+    }
+
+    if(dir()==="c2j"){
+      var r=CsvCore.csvToJson(text,{coerce:OPTS.coerce, noHeader:!OPTS.header});
+      lastOut = JSON.stringify(r.data,null,2);
+      output.value=lastOut;
+      var dn={",":"comma",";":"semicolon","\t":"tab","|":"pipe"}[r.delimiter]||r.delimiter;
+      inMeta.textContent=dn+"-separated";
+      outMeta.textContent=(r.columns.length?r.columns.length+" columns":"");
+      tally.textContent=(r.rowCount||0)+" row"+((r.rowCount===1)?"":"s")+
+        (r.columns.length?" · "+r.columns.length+" columns":"")+" · "+dn;
+      showErrors(r.errors, true);
+      if(OPTS.header) renderPreview(r.data, r.columns); else tblWrap.hidden=true;
+    } else {
+      var j=CsvCore.jsonToCsv(text,{quoteAll:OPTS.quoteAll, crlf:OPTS.crlf});
+      lastOut=j.text; output.value=j.text;
+      inMeta.textContent=""; outMeta.textContent=j.columns.length?j.columns.length+" columns":"";
+      tally.textContent=j.errors.length?"—":(j.rowCount+" row"+(j.rowCount===1?"":"s")+" · "+j.columns.length+" columns");
+      showErrors(j.errors, false);
+      if(!j.errors.length){
+        var back=CsvCore.csvToJson(j.text,{coerce:false});
+        renderPreview(back.data, back.columns);
+      } else tblWrap.hidden=true;
+    }
+    copyBtn.disabled=dlBtn.disabled=!lastOut;
+  }
+
+  function syncDir(){
+    var c2j=dir()==="c2j";
+    inLabel.textContent=c2j?"CSV in":"JSON in";
+    outLabel.textContent=c2j?"JSON out":"CSV out";
+    input.placeholder=c2j?"name,age\nAmy,30\nBob,25":'[{"name":"Amy","age":30}]';
+    buildOpts(); run();
+  }
+
+  input.addEventListener("input", run);
+  $("dirSeg").addEventListener("change", syncDir);
+
+  $("clear").addEventListener("click", function(){ input.value=""; run(); input.focus(); say("Cleared"); });
+  $("sample").addEventListener("click", function(){
+    input.value = dir()==="c2j"
+      ? 'name,role,note,joined\nAmy Chen,Engineer,"likes ""cats"", dogs",2021-04-02\nBob Ali,Design,"multi\nline note",2022-11-15\nCara Diaz,Ops,,2023-01-09'
+      : '[\n  {"name":"Amy","tags":["a","b"],"addr":{"city":"NY","zip":"10001"}},\n  {"name":"Bob","tags":["c"],"addr":{"city":"LA"}}\n]';
+    run(); say("Sample loaded");
+  });
+
+  copyBtn.addEventListener("click", function(){
+    if(!lastOut) return;
+    function done(){ copyBtn.textContent="Copied"; say("Copied","ok"); setTimeout(function(){copyBtn.textContent="Copy";},1500); }
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(lastOut).then(done,fb); else fb();
+    function fb(){ output.select(); try{document.execCommand("copy");done();}catch(e){say("Couldn't copy","err");} }
+  });
+
+  dlBtn.addEventListener("click", function(){
+    if(!lastOut) return;
+    var isJson=dir()==="c2j";
+    var blob=new Blob([lastOut],{type:isJson?"application/json":"text/csv"});
+    var url=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=url; a.download=isJson?"data.json":"data.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},1200);
+    say("Downloaded","ok");
+  });
+
+  /* file input + drop */
+  function readFile(f){
+    if(!f) return;
+    var fr=new FileReader();
+    fr.onload=function(){
+      input.value=String(fr.result);
+      if(/\.json$/i.test(f.name)) $("d-j2c").checked=true;
+      else $("d-c2j").checked=true;
+      syncDir(); say(f.name+" loaded");
+    };
+    fr.onerror=function(){ say("Couldn't read that file","err"); };
+    fr.readAsText(f);
+  }
+  fileInput.addEventListener("change", function(){ readFile(fileInput.files[0]); fileInput.value=""; });
+  ["dragenter","dragover"].forEach(function(ev){
+    dropHint.addEventListener(ev,function(e){ e.preventDefault(); dropHint.classList.add("over"); });
+  });
+  ["dragleave","dragend"].forEach(function(ev){
+    dropHint.addEventListener(ev,function(){ dropHint.classList.remove("over"); });
+  });
+  dropHint.addEventListener("drop", function(e){
+    e.preventDefault(); e.stopPropagation(); dropHint.classList.remove("over");
+    if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length) readFile(e.dataTransfer.files[0]);
+  });
+
+  syncDir();
+})();
+</script>
+</body>
+</html>
