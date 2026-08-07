@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR generator</title>
+<meta name="description" content="Simple QR generator. Runs entirely in your browser.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9'%3E%3Crect width='9' height='9' rx='2' fill='%23191918'/%3E%3Cg fill='%23fff'%3E%3Crect x='2' y='2' width='2' height='2'/%3E%3Crect x='5' y='2' width='2' height='2'/%3E%3Crect x='2' y='5' width='2' height='2'/%3E%3Crect x='5' y='5' width='2' height='2' opacity='.4'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#fbfbfa;
+  --surface:#ffffff;
+  --subtle:#f4f4f2;
+  --border:#e8e8e4;
+  --border-strong:#d9d9d3;
+  --text:#191918;
+  --muted:#77776f;
+  --faint:#a1a199;
+  --solid:#191918;
+  --solid-text:#ffffff;
+  --danger:#a3341f;
+  --radius:10px;
+  --radius-sm:7px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 1px 1px rgba(0,0,0,.03);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#111110;--surface:#1a1a19;--subtle:#232322;--border:#2b2b29;--border-strong:#3a3a37;
+    --text:#f2f2ef;--muted:#a3a39a;--faint:#77776f;--solid:#f2f2ef;--solid-text:#111110;
+    --danger:#e08b74;--shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--text);font-family:var(--font);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  padding:32px 20px 48px;
+}
+.wrap{max-width:840px;margin:0 auto}
+
+/* ---------- header ---------- */
+.topbar{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.mark{
+  width:22px;height:22px;border-radius:6px;background:var(--solid);
+  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  gap:1.5px;padding:4px;flex:none;
+}
+.mark i{background:var(--solid-text);border-radius:1px}
+.mark i:nth-child(4),.mark i:nth-child(6),.mark i:nth-child(8){opacity:.28}
+h1{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0}
+.tagline{color:var(--muted);margin:0 0 22px;font-size:13.5px;max-width:52ch}
+
+/* ---------- panel ---------- */
+.panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;
+  display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);
+}
+@media (max-width:680px){.panel{grid-template-columns:1fr}}
+
+.preview{
+  border-right:1px solid var(--border);padding:22px;
+  display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:flex-start;
+  background:var(--subtle);
+}
+@media (max-width:680px){.preview{border-right:0;border-bottom:1px solid var(--border)}}
+
+.stage{
+  width:100%;aspect-ratio:1;max-width:256px;background:#fff;border-radius:var(--radius-sm);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  padding:14px;position:relative;
+}
+.stage svg{width:100%;height:100%;display:block;shape-rendering:crispEdges}
+.stage.is-empty,.stage.is-error{
+  background:transparent;border-style:dashed;border-color:var(--border-strong);
+}
+.stage .placeholder{
+  color:var(--faint);font-size:12.5px;text-align:center;line-height:1.45;padding:0 14px;
+}
+.stage.is-error .placeholder{color:var(--danger)}
+@media (prefers-reduced-motion:no-preference){
+  .stage.fresh svg{animation:pop .18s ease-out}
+  @keyframes pop{from{opacity:0}to{opacity:1}}
+}
+
+.readout{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  letter-spacing:.01em;text-align:center;min-height:16px;
+}
+
+/* ---------- controls ---------- */
+.controls{padding:22px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.field{display:flex;flex-direction:column;gap:7px}
+label,legend,.lbl{
+  font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+  padding:0;
+}
+textarea{
+  font-family:inherit;font-size:14px;line-height:1.5;color:var(--text);
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  padding:10px 12px;resize:vertical;min-height:104px;width:100%;
+}
+textarea::placeholder{color:var(--faint)}
+textarea:focus-visible,button:focus-visible,input:focus-visible+.seg-label{
+  outline:2px solid var(--solid);outline-offset:1px;
+}
+textarea:focus{outline:2px solid var(--solid);outline-offset:1px;border-color:transparent}
+.meta-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--faint)}
+.meta-row .over{color:var(--danger);font-weight:500}
+
+/* segmented control */
+fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.seg{display:flex;background:var(--subtle);border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px;gap:2px}
+.seg input{position:absolute;opacity:0;width:0;height:0}
+.seg-label{
+  flex:1;text-align:center;padding:5px 4px;border-radius:5px;cursor:pointer;
+  font-size:12.5px;font-weight:500;color:var(--muted);white-space:nowrap;
+  transition:background .12s,color .12s;
+}
+.seg-label:hover{color:var(--text)}
+.seg input:checked+.seg-label{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.seg-hint{font-size:12px;color:var(--faint)}
+
+/* buttons */
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:2px}
+button{font-family:inherit;cursor:pointer}
+.btn{
+  flex:1 1 auto;min-width:132px;padding:8px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--border-strong);background:var(--surface);color:var(--text);
+  font-size:13px;font-weight:500;transition:background .12s,border-color .12s;
+}
+.btn:hover:not(:disabled){background:var(--subtle)}
+.btn-primary{background:var(--solid);color:var(--solid-text);border-color:var(--solid)}
+.btn-primary:hover:not(:disabled){opacity:.88}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.linkbtn{
+  background:none;border:0;padding:0;color:var(--muted);font-size:12.5px;
+  text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--border-strong);
+}
+.linkbtn:hover:not(:disabled){color:var(--text)}
+.linkbtn:disabled{opacity:.42;cursor:not-allowed}
+.linkbtn:focus-visible{outline:2px solid var(--solid);outline-offset:2px;border-radius:2px}
+
+footer{
+  margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  color:var(--faint);font-size:12.5px;
+}
+footer a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+    <h1>QR generator</h1>
+  </div>
+  <p class="tagline">Type anything, get a QR code. Everything runs in your browser — nothing is uploaded.</p>
+
+  <main class="panel">
+
+    <section class="preview">
+      <div class="stage is-empty" id="stage">
+        <p class="placeholder" id="placeholder">Your code appears here</p>
+      </div>
+      <p class="readout" id="readout"></p>
+    </section>
+
+    <section class="controls">
+
+      <div class="field">
+        <label for="content">Content</label>
+        <textarea id="content" placeholder="https://example.com" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+        <div class="meta-row">
+          <span id="count">0 bytes</span>
+          <span id="limit">limit 2,331</span>
+        </div>
+      </div>
+
+      <fieldset>
+        <legend>Error correction</legend>
+        <div class="seg" id="seg">
+          <input type="radio" name="ec" id="ec-L" value="L"><label class="seg-label" for="ec-L">L</label>
+          <input type="radio" name="ec" id="ec-M" value="M" checked><label class="seg-label" for="ec-M">M</label>
+          <input type="radio" name="ec" id="ec-Q" value="Q"><label class="seg-label" for="ec-Q">Q</label>
+          <input type="radio" name="ec" id="ec-H" value="H"><label class="seg-label" for="ec-H">H</label>
+        </div>
+        <p class="seg-hint" id="ecHint">Recovers from about 15% damage. Good default.</p>
+      </fieldset>
+
+      <div class="actions">
+        <button class="btn" id="copyBtn" disabled>Copy link</button>
+        <button class="btn btn-primary" id="pngBtn" disabled>Download PNG</button>
+      </div>
+      <button class="linkbtn" id="svgBtn" disabled>Download SVG instead</button>
+
+    </section>
+  </main>
+
+  <footer>
+    <span>Rebuilt after <a href="https://qr.grid.ws/" rel="noopener">qr.grid.ws</a></span>
+    <span id="status" role="status" aria-live="polite"></span>
+  </footer>
+</div>
+
+<script>
+/* Minimal QR Code encoder (byte mode, versions 1-40, EC levels L/M/Q/H). */
+var QR = (function () {
+  var T = "26,7,1,10,1,13,1,17,1;44,10,1,16,1,22,1,28,1;70,15,1,26,1,18,2,22,2;100,20,1,18,2,26,2,16,4;134,26,1,24,2,18,4,22,4;172,18,2,16,4,24,4,28,4;196,20,2,18,4,18,6,26,5;242,24,2,22,4,22,6,26,6;292,30,2,22,5,20,8,24,8;346,18,4,26,5,24,8,28,8;404,20,4,30,5,28,8,24,11;466,24,4,22,8,26,10,28,11;532,26,4,22,9,24,12,22,16;581,30,4,24,9,20,16,24,16;655,22,6,24,10,30,12,24,18;733,24,6,28,10,24,17,30,16;815,28,6,28,11,28,16,28,19;901,30,6,26,13,28,18,28,21;991,28,7,26,14,26,21,26,25;1085,28,8,26,16,30,20,28,25;1156,28,8,26,17,28,23,30,25;1258,28,9,28,17,30,23,24,34;1364,30,9,28,18,30,25,30,30;1474,30,10,28,20,30,27,30,32;1588,26,12,28,21,30,29,30,35;1706,28,12,28,23,28,34,30,37;1828,30,12,28,25,30,34,30,40;1921,30,13,28,26,30,35,30,42;2051,30,14,28,28,30,38,30,45;2185,30,15,28,29,30,40,30,48;2323,30,16,28,31,30,43,30,51;2465,30,17,28,33,30,45,30,54;2611,30,18,28,35,30,48,30,57;2761,30,19,28,37,30,51,30,60;2876,30,19,28,38,30,53,30,63;3034,30,20,28,40,30,56,30,66;3196,30,21,28,43,30,59,30,70;3362,30,22,28,45,30,62,30,74;3532,30,24,28,47,30,65,30,77;3706,30,25,28,49,30,68,30,81";
+  var A = ";6,18;6,22;6,26;6,30;6,34;6,22,38;6,24,42;6,26,46;6,28,50;6,30,54;6,32,58;6,34,62;6,26,46,66;6,26,48,70;6,26,50,74;6,30,54,78;6,30,56,82;6,30,58,86;6,34,62,90;6,28,50,72,94;6,26,50,74,98;6,30,54,78,102;6,28,54,80,106;6,32,58,84,110;6,30,58,86,114;6,34,62,90,118;6,26,50,74,98,122;6,30,54,78,102,126;6,26,52,78,104,130;6,30,56,82,108,134;6,34,60,86,112,138;6,30,58,86,114,142;6,34,62,90,118,146;6,30,54,78,102,126,150;6,24,50,76,102,128,154;6,28,54,80,106,132,158;6,32,58,84,110,136,162;6,26,54,82,110,138,166;6,30,58,86,114,142,170";
+
+  var TABLE = T.split(";").map(function (r) { return r.split(",").map(Number); });
+  var ALIGN = A.split(";").map(function (r) { return r ? r.split(",").map(Number) : []; });
+  var LEVELS = { L: 0, M: 1, Q: 2, H: 3 };
+  var LEVEL_BITS = { L: 1, M: 0, Q: 3, H: 2 };
+
+  // ---- Galois field GF(256), primitive polynomial 0x11D ----
+  var EXP = new Uint8Array(512), LOG = new Uint8Array(256);
+  (function () {
+    var x = 1;
+    for (var i = 0; i < 255; i++) {
+      EXP[i] = x; LOG[x] = i;
+      x <<= 1;
+      if (x & 0x100) x ^= 0x11d;
+    }
+    for (var j = 255; j < 512; j++) EXP[j] = EXP[j - 255];
+  })();
+
+  function gmul(a, b) { return a === 0 || b === 0 ? 0 : EXP[LOG[a] + LOG[b]]; }
+
+  function genPoly(degree) {
+    var poly = [1];
+    for (var d = 0; d < degree; d++) {
+      var next = new Array(poly.length + 1).fill(0);
+      for (var i = 0; i < poly.length; i++) {
+        next[i] ^= poly[i];
+        next[i + 1] ^= gmul(poly[i], EXP[d]);
+      }
+      poly = next;
+    }
+    return poly;
+  }
+
+  function ecCodewords(data, count) {
+    var gen = genPoly(count);
+    var rem = new Array(count).fill(0);
+    for (var i = 0; i < data.length; i++) {
+      var factor = data[i] ^ rem[0];
+      rem.shift(); rem.push(0);
+      for (var j = 0; j < count; j++) rem[j] ^= gmul(gen[j + 1], factor);
+    }
+    return rem;
+  }
+
+  // ---- Data encoding (byte mode, UTF-8) ----
+  function utf8Bytes(str) {
+    if (typeof TextEncoder !== "undefined") return Array.from(new TextEncoder().encode(str));
+    var out = [];
+    for (var i = 0; i < str.length; i++) {
+      var cp = str.charCodeAt(i);
+      if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < str.length) {
+        var lo = str.charCodeAt(i + 1);
+        if (lo >= 0xdc00 && lo <= 0xdfff) { cp = 0x10000 + ((cp - 0xd800) << 10) + (lo - 0xdc00); i++; }
+        else cp = 0xfffd;
+      } else if (cp >= 0xd800 && cp <= 0xdfff) cp = 0xfffd;
+
+      if (cp < 0x80) out.push(cp);
+      else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
+      else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+      else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+    }
+    return out;
+  }
+
+  function pickVersion(byteLen, level) {
+    var li = LEVELS[level];
+    for (var v = 1; v <= 40; v++) {
+      var row = TABLE[v - 1];
+      var dataCw = row[0] - row[1 + li * 2] * row[2 + li * 2];
+      var ccBits = v < 10 ? 8 : 16;
+      if (4 + ccBits + byteLen * 8 <= dataCw * 8) return v;
+    }
+    return null;
+  }
+
+  function buildCodewords(bytes, version, level) {
+    var li = LEVELS[level], row = TABLE[version - 1];
+    var ecPerBlock = row[1 + li * 2], blocks = row[2 + li * 2];
+    var totalCw = row[0], dataCw = totalCw - ecPerBlock * blocks;
+
+    // bit stream
+    var bits = [];
+    function push(value, len) {
+      for (var i = len - 1; i >= 0; i--) bits.push((value >>> i) & 1);
+    }
+    push(4, 4);                                   // byte mode
+    push(bytes.length, version < 10 ? 8 : 16);    // char count
+    for (var i = 0; i < bytes.length; i++) push(bytes[i], 8);
+
+    var capacity = dataCw * 8;
+    for (var t = 0; t < 4 && bits.length < capacity; t++) bits.push(0); // terminator
+    while (bits.length % 8 !== 0) bits.push(0);
+
+    var data = [];
+    for (var b = 0; b < bits.length; b += 8) {
+      var byte = 0;
+      for (var k = 0; k < 8; k++) byte = (byte << 1) | bits[b + k];
+      data.push(byte);
+    }
+    var pad = [0xec, 0x11], p = 0;
+    while (data.length < dataCw) data.push(pad[p++ % 2]);
+
+    // split into blocks
+    var shortLen = Math.floor(dataCw / blocks), longCount = dataCw % blocks;
+    var dataBlocks = [], ecBlocks = [], offset = 0;
+    for (var n = 0; n < blocks; n++) {
+      var len = shortLen + (n >= blocks - longCount ? 1 : 0);
+      var blk = data.slice(offset, offset + len);
+      offset += len;
+      dataBlocks.push(blk);
+      ecBlocks.push(ecCodewords(blk, ecPerBlock));
+    }
+
+    // interleave
+    var result = [];
+    for (var c = 0; c <= shortLen; c++)
+      for (var n2 = 0; n2 < blocks; n2++)
+        if (c < dataBlocks[n2].length) result.push(dataBlocks[n2][c]);
+    for (var e = 0; e < ecPerBlock; e++)
+      for (var n3 = 0; n3 < blocks; n3++) result.push(ecBlocks[n3][e]);
+
+    return result;
+  }
+
+  // ---- Matrix ----
+  function makeMatrix(size) {
+    var m = [];
+    for (var i = 0; i < size; i++) m.push(new Array(size).fill(false));
+    return m;
+  }
+
+  function placeFunctions(m, reserved, version) {
+    var size = m.length;
+
+    function setFinder(r, c) {
+      for (var i = -1; i <= 7; i++) {
+        for (var j = -1; j <= 7; j++) {
+          var rr = r + i, cc = c + j;
+          if (rr < 0 || rr >= size || cc < 0 || cc >= size) continue;
+          var on = (i >= 0 && i <= 6 && (j === 0 || j === 6)) ||
+                   (j >= 0 && j <= 6 && (i === 0 || i === 6)) ||
+                   (i >= 2 && i <= 4 && j >= 2 && j <= 4);
+          m[rr][cc] = on;
+          reserved[rr][cc] = true;
+        }
+      }
+    }
+    setFinder(0, 0); setFinder(0, size - 7); setFinder(size - 7, 0);
+
+    // timing patterns
+    for (var i = 8; i < size - 8; i++) {
+      var on = i % 2 === 0;
+      m[6][i] = on; reserved[6][i] = true;
+      m[i][6] = on; reserved[i][6] = true;
+    }
+
+    // alignment patterns
+    var coords = ALIGN[version - 1], last = coords.length - 1;
+    for (var a = 0; a < coords.length; a++) {
+      for (var b = 0; b < coords.length; b++) {
+        if ((a === 0 && b === 0) || (a === 0 && b === last) || (a === last && b === 0)) continue;
+        var r = coords[a], c = coords[b];
+        for (var i2 = -2; i2 <= 2; i2++) {
+          for (var j2 = -2; j2 <= 2; j2++) {
+            m[r + i2][c + j2] = Math.max(Math.abs(i2), Math.abs(j2)) !== 1;
+            reserved[r + i2][c + j2] = true;
+          }
+        }
+      }
+    }
+
+    // reserve format info areas
+    for (var f = 0; f < 9; f++) {
+      if (f !== 6) { reserved[8][f] = true; reserved[f][8] = true; }
+    }
+    for (var g = 0; g < 8; g++) {
+      reserved[8][size - 1 - g] = true;
+      reserved[size - 1 - g][8] = true;
+    }
+    m[size - 8][8] = true; reserved[size - 8][8] = true; // dark module
+
+    // reserve version info
+    if (version >= 7) {
+      for (var v = 0; v < 18; v++) {
+        var rr2 = Math.floor(v / 3), cc2 = v % 3;
+        reserved[rr2][size - 11 + cc2] = true;
+        reserved[size - 11 + cc2][rr2] = true;
+      }
+    }
+  }
+
+  function placeData(m, reserved, codewords) {
+    var size = m.length, bitIdx = 0, total = codewords.length * 8, dir = -1, row = size - 1;
+    for (var col = size - 1; col > 0; col -= 2) {
+      if (col === 6) col = 5;
+      while (true) {
+        for (var c = 0; c < 2; c++) {
+          var cc = col - c;
+          if (!reserved[row][cc]) {
+            var dark = false;
+            if (bitIdx < total) dark = ((codewords[bitIdx >>> 3] >>> (7 - (bitIdx & 7))) & 1) === 1;
+            m[row][cc] = dark;
+            bitIdx++;
+          }
+        }
+        row += dir;
+        if (row < 0 || row >= size) { row -= dir; dir = -dir; break; }
+      }
+    }
+  }
+
+  var MASKS = [
+    function (i, j) { return (i + j) % 2 === 0; },
+    function (i) { return i % 2 === 0; },
+    function (i, j) { return j % 3 === 0; },
+    function (i, j) { return (i + j) % 3 === 0; },
+    function (i, j) { return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 === 0; },
+    function (i, j) { return ((i * j) % 2) + ((i * j) % 3) === 0; },
+    function (i, j) { return (((i * j) % 2) + ((i * j) % 3)) % 2 === 0; },
+    function (i, j) { return (((i + j) % 2) + ((i * j) % 3)) % 2 === 0; }
+  ];
+
+  function penalty(m) {
+    var size = m.length, score = 0, dark = 0;
+
+    function runScore(get) {
+      var s = 0;
+      for (var a = 0; a < size; a++) {
+        var run = 1;
+        for (var b = 1; b < size; b++) {
+          if (get(a, b) === get(a, b - 1)) run++;
+          else { if (run >= 5) s += 3 + (run - 5); run = 1; }
+        }
+        if (run >= 5) s += 3 + (run - 5);
+      }
+      return s;
+    }
+    score += runScore(function (a, b) { return m[a][b]; });
+    score += runScore(function (a, b) { return m[b][a]; });
+
+    for (var i = 0; i < size - 1; i++)
+      for (var j = 0; j < size - 1; j++) {
+        var v = m[i][j];
+        if (v === m[i][j + 1] && v === m[i + 1][j] && v === m[i + 1][j + 1]) score += 3;
+      }
+
+    var p1 = [true, false, true, true, true, false, true, false, false, false, false];
+    var p2 = [false, false, false, false, true, false, true, true, true, false, true];
+    function matches(get, a, b, pat) {
+      for (var k = 0; k < 11; k++) if (get(a, b + k) !== pat[k]) return false;
+      return true;
+    }
+    for (var a2 = 0; a2 < size; a2++)
+      for (var b2 = 0; b2 <= size - 11; b2++) {
+        if (matches(function (x, y) { return m[x][y]; }, a2, b2, p1)) score += 40;
+        if (matches(function (x, y) { return m[x][y]; }, a2, b2, p2)) score += 40;
+        if (matches(function (x, y) { return m[y][x]; }, a2, b2, p1)) score += 40;
+        if (matches(function (x, y) { return m[y][x]; }, a2, b2, p2)) score += 40;
+      }
+
+    for (var r = 0; r < size; r++)
+      for (var c = 0; c < size; c++) if (m[r][c]) dark++;
+    var k = Math.abs(Math.ceil(((dark * 100) / (size * size)) / 5) - 10);
+    score += k * 10;
+    return score;
+  }
+
+  function formatBits(level, mask) {
+    var data = (LEVEL_BITS[level] << 3) | mask;
+    var rem = data;
+    for (var i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    return ((data << 10) | rem) ^ 0x5412;
+  }
+
+  function versionBits(version) {
+    var rem = version;
+    for (var i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1f25);
+    return (version << 12) | rem;
+  }
+
+  function applyFormat(m, level, mask) {
+    var size = m.length, bits = formatBits(level, mask);
+    for (var i = 0; i < 15; i++) {
+      var bit = ((bits >>> i) & 1) === 1;
+      // vertical strip beside top-left finder
+      if (i < 6) m[i][8] = bit;
+      else if (i === 6) m[7][8] = bit;
+      else if (i === 7) m[8][8] = bit;
+      else if (i === 8) m[8][7] = bit;
+      else m[8][14 - i] = bit;
+      // duplicate copy
+      if (i < 8) m[8][size - 1 - i] = bit;
+      else m[size - 15 + i][8] = bit;
+    }
+    m[size - 8][8] = true;
+  }
+
+  function applyVersion(m, version) {
+    if (version < 7) return;
+    var size = m.length, bits = versionBits(version);
+    for (var i = 0; i < 18; i++) {
+      var bit = ((bits >>> i) & 1) === 1;
+      var r = Math.floor(i / 3), c = i % 3;
+      m[r][size - 11 + c] = bit;
+      m[size - 11 + c][r] = bit;
+    }
+  }
+
+  function generate(text, level) {
+    level = level || "M";
+    if (!(level in LEVELS)) throw new Error("Unknown error correction level: " + level);
+    var bytes = utf8Bytes(String(text));
+    var version = pickVersion(bytes.length, level);
+    if (!version) throw new Error("Too much data for a QR code");
+
+    var codewords = buildCodewords(bytes, version, level);
+    var size = version * 4 + 17;
+    var reserved = makeMatrix(size);
+    var base = makeMatrix(size);
+    placeFunctions(base, reserved, version);
+    placeData(base, reserved, codewords);
+
+    var best = null, bestScore = Infinity;
+    for (var mask = 0; mask < 8; mask++) {
+      var m = base.map(function (row) { return row.slice(); });
+      for (var i = 0; i < size; i++)
+        for (var j = 0; j < size; j++)
+          if (!reserved[i][j] && MASKS[mask](i, j)) m[i][j] = !m[i][j];
+      applyFormat(m, level, mask);
+      applyVersion(m, version);
+      var s = penalty(m);
+      if (s < bestScore) { bestScore = s; best = m; }
+    }
+    return { size: size, version: version, level: level, modules: best };
+  }
+
+  return { generate: generate };
+})();
+
+
+</script>
+<script>
+(function () {
+  "use strict";
+
+  var LIMITS = { L: 2953, M: 2331, Q: 1663, H: 1273 };
+  var HINTS = {
+    L: "Recovers from about 7% damage. Smallest code.",
+    M: "Recovers from about 15% damage. Good default.",
+    Q: "Recovers from about 25% damage.",
+    H: "Recovers from about 30% damage. Best for stickers and print."
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var content = $("content"), stage = $("stage"), placeholder = $("placeholder"),
+      readout = $("readout"), count = $("count"), limitEl = $("limit"),
+      ecHint = $("ecHint"), copyBtn = $("copyBtn"), pngBtn = $("pngBtn"),
+      svgBtn = $("svgBtn"), status = $("status");
+
+  var current = null;      // last successful { size, version, level, modules }
+  var QUIET = 4;           // quiet zone, in modules
+  var statusTimer = null;
+
+  function byteLength(str) {
+    return typeof TextEncoder !== "undefined"
+      ? new TextEncoder().encode(str).length
+      : unescape(encodeURIComponent(str)).length;
+  }
+
+  function level() {
+    var el = document.querySelector('input[name="ec"]:checked');
+    return el ? el.value : "M";
+  }
+
+  function say(msg) {
+    status.textContent = msg;
+    clearTimeout(statusTimer);
+    if (msg) statusTimer = setTimeout(function () { status.textContent = ""; }, 2600);
+  }
+
+  /* Walk the symbol row by row, merging runs of dark modules into one shape each. */
+  function forEachRun(qr, cb) {
+    for (var y = 0; y < qr.size; y++) {
+      var x = 0;
+      while (x < qr.size) {
+        if (!qr.modules[y][x]) { x++; continue; }
+        var run = 0;
+        while (x + run < qr.size && qr.modules[y][x + run]) run++;
+        cb(x, y, run);
+        x += run;
+      }
+    }
+  }
+
+  function buildPath(qr) {
+    var d = "";
+    forEachRun(qr, function (x, y, run) {
+      d += "M" + (x + QUIET) + " " + (y + QUIET) + "h" + run + "v1h-" + run + "z";
+    });
+    return d;
+  }
+
+  function svgMarkup(qr, px) {
+    var dim = qr.size + QUIET * 2;
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dim + " " + dim + '"' +
+           (px ? ' width="' + px + '" height="' + px + '"' : "") +
+           ' shape-rendering="crispEdges" role="img" aria-label="QR code">' +
+           '<rect width="' + dim + '" height="' + dim + '" fill="#ffffff"/>' +
+           '<path d="' + buildPath(qr) + '" fill="#000000"/></svg>';
+  }
+
+  /* Patch the existing symbol when its size is unchanged, so typing doesn't re-trigger the fade. */
+  function paint(qr, fresh) {
+    var dim = qr.size + QUIET * 2;
+    var svg = stage.querySelector("svg");
+    if (svg && svg.getAttribute("viewBox") === "0 0 " + dim + " " + dim) {
+      svg.querySelector("path").setAttribute("d", buildPath(qr));
+    } else {
+      stage.innerHTML = svgMarkup(qr, null);
+    }
+    stage.className = fresh ? "stage fresh" : "stage";
+  }
+
+  function setDisabled(on) {
+    copyBtn.disabled = on; pngBtn.disabled = on; svgBtn.disabled = on;
+  }
+
+  function showEmpty(msg, isError) {
+    current = null;
+    stage.className = "stage " + (isError ? "is-error" : "is-empty");
+    stage.innerHTML = '<p class="placeholder"></p>';
+    stage.firstChild.textContent = msg;
+    readout.textContent = "";
+    setDisabled(true);
+  }
+
+  function render() {
+    var text = content.value;
+    var lvl = level();
+    var bytes = byteLength(text);
+    var max = LIMITS[lvl];
+
+    count.textContent = bytes.toLocaleString() + (bytes === 1 ? " byte" : " bytes");
+    count.className = bytes > max ? "over" : "";
+    limitEl.textContent = "limit " + max.toLocaleString();
+    ecHint.textContent = HINTS[lvl];
+
+    if (!text) { showEmpty("Your code appears here", false); return; }
+    if (bytes > max) {
+      showEmpty("Too long by " + (bytes - max).toLocaleString() + " bytes. Shorten it, or pick a lower error correction level.", true);
+      return;
+    }
+
+    try {
+      var qr = QR.generate(text, lvl);
+      var fresh = !current;
+      current = qr;
+      paint(qr, fresh);
+      readout.textContent = "version " + qr.version + " · " + qr.size + "×" + qr.size + " · level " + lvl;
+      setDisabled(false);
+    } catch (err) {
+      showEmpty("Could not build a code for this. " + err.message, true);
+    }
+  }
+
+  /* --- downloads --- */
+  function saveBlob(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function filename(ext) {
+    var base = content.value.trim().replace(/^https?:\/\//, "").replace(/[^a-z0-9]+/gi, "-")
+                 .replace(/^-+|-+$/g, "").slice(0, 32).toLowerCase();
+    return "qr-" + (base || "code") + "." + ext;
+  }
+
+  pngBtn.addEventListener("click", function () {
+    if (!current) return;
+    var dim = current.size + QUIET * 2;
+    var scale = Math.max(4, Math.round(1024 / dim));
+    var size = dim * scale;
+    var c = document.createElement("canvas");
+    c.width = c.height = size;
+    var ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#000000";
+    forEachRun(current, function (x, y, run) {
+      ctx.fillRect((x + QUIET) * scale, (y + QUIET) * scale, run * scale, scale);
+    });
+    c.toBlob(function (blob) {
+      saveBlob(blob, filename("png"));
+      say("PNG downloaded (" + size + "×" + size + ")");
+    }, "image/png");
+  });
+
+  svgBtn.addEventListener("click", function () {
+    if (!current) return;
+    saveBlob(new Blob([svgMarkup(current, 1024)], { type: "image/svg+xml" }), filename("svg"));
+    say("SVG downloaded");
+  });
+
+  copyBtn.addEventListener("click", function () {
+    if (!current) return;
+    var base = location.origin === "null" ? location.href.split("?")[0] : location.origin + location.pathname;
+    var url = base + "?d=" + encodeURIComponent(content.value) + (level() === "M" ? "" : "&ec=" + level());
+    function done() {
+      copyBtn.textContent = "Copied";
+      say("Link copied to clipboard");
+      setTimeout(function () { copyBtn.textContent = "Copy link"; }, 1600);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, fallback);
+    } else fallback();
+
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = url; ta.setAttribute("readonly", "");
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); done(); }
+      catch (e) { say("Copy failed — the link is in the address bar"); }
+      ta.remove();
+    }
+  });
+
+  /* --- wiring --- */
+  var frame = null;
+  function schedule() {
+    if (frame) cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(function () { frame = null; render(); });
+  }
+  content.addEventListener("input", schedule);
+  document.getElementById("seg").addEventListener("change", render);
+
+  /* prefill from ?d= */
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var d = q.get("d"), ec = (q.get("ec") || "").toUpperCase();
+    if (ec && LIMITS[ec]) { var r = document.getElementById("ec-" + ec); if (r) r.checked = true; }
+    if (d) content.value = d;
+  })();
+
+  render();
+  if (!content.value) content.focus();
+})();
+</script>
+</body>
+</html>
