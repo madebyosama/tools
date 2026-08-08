@@ -100,8 +100,53 @@ table.preview th{background:var(--subtle);position:sticky;top:0;font-weight:600;
 table.preview td{font-family:var(--mono);color:var(--muted)}
 table.preview tr:last-child td{border-bottom:0}
 </style>
+
+<style>/* ── shared site nav ─────────────────────────────────────────── */
+.sitenav{position:sticky;top:0;z-index:60;margin:-32px -20px 26px;padding:0 20px;
+  background:var(--bg);border-bottom:1px solid var(--border)}
+@supports (backdrop-filter:blur(2px)){
+  .sitenav{background:color-mix(in srgb,var(--bg) 80%,transparent);
+    -webkit-backdrop-filter:saturate(180%) blur(14px);backdrop-filter:saturate(180%) blur(14px)}
+}
+.sitenav-in{max-width:840px;margin:0 auto;height:46px;display:flex;align-items:center;gap:14px}
+.nv-home{display:inline-flex;align-items:center;gap:8px;flex:none;text-decoration:none;
+  color:var(--text);font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.nv-logo{width:20px;height:20px;display:block;flex:none}
+.nv-logo .bg{fill:var(--solid)}
+.nv-logo .fg{fill:var(--solid-text)}
+.nv-links{display:flex;align-items:center;gap:2px;margin-left:auto;
+  overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+.nv-links::-webkit-scrollbar{display:none}
+.nv-links a{flex:none;white-space:nowrap;text-decoration:none;color:var(--muted);
+  font-size:13px;padding:5px 9px;border-radius:var(--radius-sm);
+  transition:color .12s ease,background-color .12s ease}
+.nv-links a:hover{color:var(--text);background:var(--subtle)}
+.nv-links a[aria-current="page"]{color:var(--text);font-weight:600;background:var(--subtle)}
+.sitenav a:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+@media (max-width:620px){
+  .sitenav-in{gap:8px}
+  .nv-word{display:none}
+  .nv-links{-webkit-mask-image:linear-gradient(90deg,#000 0,#000 90%,transparent 100%);
+    mask-image:linear-gradient(90deg,#000 0,#000 90%,transparent 100%);padding-right:10px}
+}
+@media (prefers-reduced-motion:reduce){.nv-links a{transition:none}}
+</style>
 </head>
 <body>
+<!-- site-nav -->
+<nav class="sitenav" aria-label="Tools">
+  <div class="sitenav-in">
+    <a class="nv-home" href="../"><svg class="nv-logo" viewBox="0 0 20 20" aria-hidden="true"><rect class="bg" width="20" height="20" rx="5"/><g class="fg"><rect x="5" y="5" width="4" height="4" rx="1"/><rect x="11" y="5" width="4" height="4" rx="1"/><rect x="5" y="11" width="4" height="4" rx="1"/><rect x="11" y="11" width="4" height="4" rx="1" opacity=".4"/></g></svg><span class="nv-word">tools</span></a>
+    <div class="nv-links">
+        <a href="../csv-json/" aria-current="page">CSV ↔ JSON</a>
+        <a href="../jwt-decoder/">JWT decoder</a>
+        <a href="../password-generator/">Passwords</a>
+        <a href="../pdf-merge/">PDF merge</a>
+        <a href="../qr-generator/">QR code</a>
+    </div>
+  </div>
+</nav>
+
 <div class="wrap">
   <div class="topbar"><span class="mark" aria-hidden="true">⇄</span><h1>CSV ↔ JSON</h1></div>
   <p class="tagline">Convert either direction, with quoted fields, embedded newlines and odd delimiters handled properly. Runs entirely in your browser.</p>
