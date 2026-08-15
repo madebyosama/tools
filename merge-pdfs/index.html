@@ -16,7 +16,7 @@
     <script>
       (function () {
         try {
-          var k = "mergemypdfs-theme";
+          var k = "tools-theme";
           var t = localStorage.getItem(k);
           if (t !== "light" && t !== "dark") {
             t = window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -90,7 +90,7 @@
       }
       @font-face {
         font-family: "Satoshi";
-        src: url("./font.woff2") format("woff2");
+        src: url("../font.woff2") format("woff2");
         font-weight: 300 900;
         font-style: normal;
         font-display: swap;
@@ -24761,7 +24761,7 @@
               : "dark";
           document.documentElement.dataset.theme = next;
           try {
-            localStorage.setItem("mergemypdfs-theme", next);
+            localStorage.setItem("tools-theme", next);
           } catch (e) {}
           paintTheme();
         });
@@ -24771,7 +24771,7 @@
           .addEventListener("change", function (e) {
             var stored = null;
             try {
-              stored = localStorage.getItem("mergemypdfs-theme");
+              stored = localStorage.getItem("tools-theme");
             } catch (err) {}
             if (stored === "light" || stored === "dark") return;
             document.documentElement.dataset.theme = e.matches

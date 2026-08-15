@@ -6,22 +6,47 @@
 <title>JWT decoder</title>
 <meta name="description" content="Decode and verify JWTs locally. Tokens never leave your browser.">
 <meta name="color-scheme" content="light dark">
-<style>:root{
-  --bg:#fbfbfa; --surface:#ffffff; --subtle:#f4f4f2; --border:#e8e8e4; --border-strong:#d9d9d3;
-  --text:#191918; --muted:#77776f; --faint:#a1a199; --solid:#191918; --solid-text:#ffffff;
-  --danger:#a3341f; --danger-bg:#fdf3f0; --ok:#2f6f4f; --ok-bg:#eef5f1; --warn:#8a6a1f; --warn-bg:#fbf6e9;
-  --radius:10px; --radius-sm:7px;
-  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+<script>
+(function () {
+  try {
+    var k = "tools-theme";
+    var t = localStorage.getItem(k);
+    if (t !== "light" && t !== "dark") {
+      t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.dataset.theme = t;
+  } catch (e) {}
+})();
+</script>
+<style>:root,:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#fff; --surface:#f5f5f5; --subtle:#fff; --border:#e3e3e3; --border-strong:#ccc;
+  --text:#212121; --muted:#888; --faint:#888; --solid:#212121; --solid-text:#fff; --solid-hover:#3c3c3c;
+  --danger:#b23a1c; --danger-bg:#fbeee8; --ok:#2f6f4f; --ok-bg:#eef5f1; --warn:#8a6a1f; --warn-bg:#fbf6e9;
+  --radius:12px; --radius-sm:8px;
+  --font:"Satoshi",Arial,Helvetica,sans-serif;
   --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-  --shadow:0 1px 2px rgba(0,0,0,.04),0 1px 1px rgba(0,0,0,.03);
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 12px 28px -18px rgba(0,0,0,.28);
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#212121;--surface:#2e2e2e;--subtle:#212121;--border:#3c3c3c;--border-strong:#3c3c3c;
+  --text:#fff;--muted:#ccc;--faint:#ccc;--solid:#3c3c3c;--solid-text:#fff;--solid-hover:#888;
+  --danger:#e08b74;--danger-bg:#2e2420;--ok:#7fbf9a;--ok-bg:#20302a;--warn:#d8b866;--warn-bg:#2c2818;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -20px rgba(0,0,0,.7);
 }
 @media (prefers-color-scheme:dark){
-  :root{
-    --bg:#111110;--surface:#1a1a19;--subtle:#232322;--border:#2b2b29;--border-strong:#3a3a37;
-    --text:#f2f2ef;--muted:#a3a39a;--faint:#77776f;--solid:#f2f2ef;--solid-text:#111110;
-    --danger:#e08b74;--danger-bg:#2a1c18;--ok:#7fbf9a;--ok-bg:#18241d;--warn:#d8b866;--warn-bg:#282216;
-    --shadow:0 1px 2px rgba(0,0,0,.3);
+  :root:not([data-theme]){
+    color-scheme:dark;
+    --bg:#212121;--surface:#2e2e2e;--subtle:#212121;--border:#3c3c3c;--border-strong:#3c3c3c;
+    --text:#fff;--muted:#ccc;--faint:#ccc;--solid:#3c3c3c;--solid-text:#fff;--solid-hover:#888;
+    --danger:#e08b74;--danger-bg:#2e2420;--ok:#7fbf9a;--ok-bg:#20302a;--warn:#d8b866;--warn-bg:#2c2818;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 16px 34px -20px rgba(0,0,0,.7);
   }
+}
+@font-face{
+  font-family:"Satoshi"; src:url("../font.woff2") format("woff2");
+  font-weight:300 900; font-style:normal; font-display:swap;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -80,7 +105,14 @@ footer{margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-
 .parts{font-family:var(--mono);font-size:12.5px;word-break:break-all;line-height:1.6;
   background:var(--subtle);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-top:10px}
 .p0{color:#b4531a} .p1{color:#2f6f4f} .p2{color:#6b4fa8}
-@media (prefers-color-scheme:dark){.p0{color:#e2a06a}.p1{color:#7fbf9a}.p2{color:#b49ae0}}
+:root[data-theme="dark"] .p0{color:#e2a06a}
+:root[data-theme="dark"] .p1{color:#7fbf9a}
+:root[data-theme="dark"] .p2{color:#b49ae0}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme]) .p0{color:#e2a06a}
+  :root:not([data-theme]) .p1{color:#7fbf9a}
+  :root:not([data-theme]) .p2{color:#b49ae0}
+}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:0}
 @media (max-width:660px){.cols{grid-template-columns:1fr}}
 .cols > div{padding:18px;min-width:0}
@@ -100,53 +132,19 @@ pre{margin:8px 0 0;font-family:var(--mono);font-size:12.5px;line-height:1.55;whi
 .verify-row input,.verify-row textarea{flex:1;min-width:180px}
 .hdr{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .empty{padding:26px 18px;text-align:center;color:var(--faint);font-size:13px}
-</style>
 
-<style>/* ── shared site nav ─────────────────────────────────────────── */
-.sitenav{position:sticky;top:0;z-index:60;margin:-32px -20px 26px;padding:0 20px;
-  background:var(--bg);border-bottom:1px solid var(--border)}
-@supports (backdrop-filter:blur(2px)){
-  .sitenav{background:color-mix(in srgb,var(--bg) 80%,transparent);
-    -webkit-backdrop-filter:saturate(180%) blur(14px);backdrop-filter:saturate(180%) blur(14px)}
-}
-.sitenav-in{max-width:840px;margin:0 auto;height:46px;display:flex;align-items:center;gap:14px}
-.nv-home{display:inline-flex;align-items:center;gap:8px;flex:none;text-decoration:none;
-  color:var(--text);font-size:13.5px;font-weight:600;letter-spacing:-.01em}
-.nv-logo{width:20px;height:20px;display:block;flex:none}
-.nv-logo .bg{fill:var(--solid)}
-.nv-logo .fg{fill:var(--solid-text)}
-.nv-links{display:flex;align-items:center;gap:2px;margin-left:auto;
-  overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
-.nv-links::-webkit-scrollbar{display:none}
-.nv-links a{flex:none;white-space:nowrap;text-decoration:none;color:var(--muted);
-  font-size:13px;padding:5px 9px;border-radius:var(--radius-sm);
-  transition:color .12s ease,background-color .12s ease}
-.nv-links a:hover{color:var(--text);background:var(--subtle)}
-.nv-links a[aria-current="page"]{color:var(--text);font-weight:600;background:var(--subtle)}
-.sitenav a:focus-visible{outline:2px solid var(--text);outline-offset:2px}
-@media (max-width:620px){
-  .sitenav-in{gap:8px}
-  .nv-word{display:none}
-  .nv-links{-webkit-mask-image:linear-gradient(90deg,#000 0,#000 90%,transparent 100%);
-    mask-image:linear-gradient(90deg,#000 0,#000 90%,transparent 100%);padding-right:10px}
-}
-@media (prefers-reduced-motion:reduce){.nv-links a{transition:none}}
+/* ---------- theme switch ---------- */
+.themeSwitch{position:fixed;top:16px;right:16px;z-index:70;display:grid;place-items:center;
+  width:38px;height:38px;background:var(--surface);border:1px solid var(--border);border-radius:50%;
+  color:var(--muted);cursor:pointer;transition:color .15s ease,transform .15s ease}
+.themeSwitch:hover{color:var(--text);transform:scale(1.06)}
+.themeSwitch svg{width:17px;height:17px;display:block}
 </style>
 </head>
 <body>
-<!-- site-nav -->
-<nav class="sitenav" aria-label="Tools">
-  <div class="sitenav-in">
-    <a class="nv-home" href="../"><svg class="nv-logo" viewBox="0 0 20 20" aria-hidden="true"><rect class="bg" width="20" height="20" rx="5"/><g class="fg"><rect x="5" y="5" width="4" height="4" rx="1"/><rect x="11" y="5" width="4" height="4" rx="1"/><rect x="5" y="11" width="4" height="4" rx="1"/><rect x="11" y="11" width="4" height="4" rx="1" opacity=".4"/></g></svg><span class="nv-word">tools</span></a>
-    <div class="nv-links">
-        <a href="../csv-json/">CSV ↔ JSON</a>
-        <a href="../jwt-decoder/" aria-current="page">JWT decoder</a>
-        <a href="../password-generator/">Passwords</a>
-        <a href="../pdf-merge/">PDF merge</a>
-        <a href="../qr-generator/">QR code</a>
-    </div>
-  </div>
-</nav>
+<button class="themeSwitch" id="themeSwitch" type="button" aria-label="Switch theme">
+  <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"></svg>
+</button>
 
 <div class="wrap">
   <div class="topbar"><span class="mark" aria-hidden="true">{}</span><h1>JWT decoder</h1></div>
@@ -515,6 +513,36 @@ pre{margin:8px 0 0;font-family:var(--mono);font-size:12.5px;line-height:1.55;whi
   });
 
   render();
+})();
+</script>
+<script>
+(function(){
+  "use strict";
+  var themeSwitch = document.getElementById("themeSwitch"),
+      themeIcon = document.getElementById("themeIcon");
+  var SUN = '<circle cx="12" cy="12" r="4.2" /><path stroke-linecap="round" d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6" />';
+  var MOON = '<path stroke-linecap="round" stroke-linejoin="round" d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1Z" />';
+  function paintTheme(){
+    var dark = document.documentElement.dataset.theme === "dark";
+    themeIcon.innerHTML = dark ? SUN : MOON;
+    var label = dark ? "Switch to light mode" : "Switch to dark mode";
+    themeSwitch.setAttribute("aria-label", label);
+    themeSwitch.title = label;
+  }
+  themeSwitch.addEventListener("click", function(){
+    var next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try{ localStorage.setItem("tools-theme", next); }catch(e){}
+    paintTheme();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(e){
+    var stored = null;
+    try{ stored = localStorage.getItem("tools-theme"); }catch(err){}
+    if(stored === "light" || stored === "dark") return;
+    document.documentElement.dataset.theme = e.matches ? "dark" : "light";
+    paintTheme();
+  });
+  paintTheme();
 })();
 </script>
 </body>
